@@ -1,0 +1,8 @@
+streamlit
+langchain_groq
+feedparser
+serpapi
+sentence-transformers
+chromadb
+requests
+beautifulsoup4

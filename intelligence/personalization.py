@@ -1,9 +1,51 @@
-def rank_articles(articles):
-    # simple scoring (can upgrade later)
-    for a in articles:
-        a["score"] = len(a.get("skills", []))
+import os
+import sys
 
-    return sorted(articles, key=lambda x: x["score"], reverse=True)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.config import HIGH_VALUE_TOPICS, HIGH_VALUE_SKILLS, KEYWORDS 
+
+def rank_articles(articles):
+    
+    for article in articles:
+        score = 0
+
+        topic = article.get("topic", "General")
+        skills = article.get("skills", [])
+        text = (
+            article.get("title", "") + " " +
+            article.get("summary", "")
+        ).lower()
+
+        # Topic importance
+        score += HIGH_VALUE_TOPICS.get(topic, 1)
+
+        # Skill count
+        score += len(skills) * 2
+
+        # Valuable skills
+        for skill in skills:
+            score += HIGH_VALUE_SKILLS.get(skill, 1)
+
+        # Trending AI keywords
+        for keyword in KEYWORDS:
+            if keyword in text:
+                score += 2
+
+        # Bonus for deeper technical articles
+        if len(article.get("summary", "")) > 300:
+            score += 2
+
+        # Bonus for many technical skills
+        if len(skills) >= 4:
+            score += 3
+
+        article["score"] = score
+
+    return sorted(
+        articles,
+        key=lambda x: x["score"],
+        reverse=True
+    )
 
 if __name__ == "__main__":
     sample_articles = [
