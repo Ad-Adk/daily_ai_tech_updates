@@ -1,31 +1,28 @@
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""
+classifier.py – Filter articles to those relevant to AI/tech topics.
+"""
 
 from config.config import KEYWORDS
 
-def filter_relevant(articles):
-    filtered = []
+# Pre-lowercase keywords once at import time for fast repeated lookups
+_KEYWORDS_LOWER = [k.lower() for k in KEYWORDS]
 
-    for a in articles:
-        text = (a["title"] + " " + a["description"]).lower()
-        
-        if any(k.lower() in text for k in KEYWORDS):
-            filtered.append(a)
 
-    return filtered
-
-if __name__ == "__main__":
-    sample_articles = [
-        {"title": "AI breakthrough", "description": "New AI model achieves state-of-the-art results", "url": "http://example.com/ai-breakthrough"},
-        {"title": "Sports update", "description": "Local team wins championship", "url": "http://example.com/sports-update"},
-        {"title": "MLOps best practices", "description": "How to deploy machine learning models effectively", "url": "http://example.com/mlops-best-practices"},
-        {"title": "Cooking tips", "description": "How to make the perfect pasta", "url": "http://example.com/cooking-tips"}
+def filter_relevant(articles: list[dict]) -> list[dict]:
+    """Return only articles whose title+description match at least one keyword."""
+    return [
+        a for a in articles
+        if any(k in (a["title"] + " " + a["description"]).lower()
+               for k in _KEYWORDS_LOWER)
     ]
 
-    filtered = filter_relevant(sample_articles)
-    for article in filtered:
-        print(f"Title: {article['title']}")
-        print(f"Description: {article['description']}")
-        print(f"URL: {article['url']}")
-        print("-" * 80)
+
+if __name__ == "__main__":
+    _samples = [
+        {"title": "AI breakthrough",   "description": "New LLM achieves SOTA",           "url": "http://example.com/1"},
+        {"title": "Sports update",     "description": "Local team wins championship",     "url": "http://example.com/2"},
+        {"title": "MLOps strategies",  "description": "Deploy ML models effectively",    "url": "http://example.com/3"},
+        {"title": "Cooking tips",      "description": "How to make the perfect pasta",   "url": "http://example.com/4"},
+    ]
+    for a in filter_relevant(_samples):
+        print(f"✓ {a['title']}")

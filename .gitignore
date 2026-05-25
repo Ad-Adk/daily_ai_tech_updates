@@ -1,3 +1,4 @@
 config/.env
 chroma_db
-AI_Tech_app_optimised
+*__pycache__
+*.pyc

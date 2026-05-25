@@ -1,89 +1,77 @@
+"""
+insights.py – Extract topic and skill tags from article text using an LLM.
+"""
+
 import json
 import os
-from langchain_groq import ChatGroq
-from pathlib import Path
 from dotenv import load_dotenv
+from langchain_groq import ChatGroq
 
-# Locate config/.env
-env_path = Path(__file__).resolve().parent.parent / "config" / ".env"
-load_dotenv(dotenv_path=env_path)
+from config.config import ENV_PATH, LLM_MODEL, LLM_TEMP, MAX_SKILLS
 
-# Export variables
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+load_dotenv(dotenv_path=ENV_PATH)
 
-llm = ChatGroq(
-    temperature=0,
-    groq_api_key=GROQ_API_KEY,
-    model_name="llama-3.1-8b-instant"
+_llm = ChatGroq(
+    temperature=LLM_TEMP,
+    groq_api_key=os.getenv("GROQ_API_KEY"),
+    model_name=LLM_MODEL,
 )
 
-def extract_insights(article):
-    text = article["description"]
+_PROMPT = """You are an AI news analyst.
 
-    prompt = f"""
-        You are an AI news analyst.
+Analyze the following article and return ONLY valid JSON in this exact format:
+{{
+    "topic": "short category",
+    "skills": ["skill1", "skill2"]
+}}
 
-        Analyze the following article and return ONLY valid JSON.
+Rules:
+- topic: concise AI/tech category (e.g. LLM, Computer Vision, MLOps)
+- skills: up to {max_skills} technical skills/tools/concepts
+- Output ONLY JSON — no markdown, no explanation
 
-        Required JSON format:
-        {{
-            "topic": "short category",
-            "skills": ["skill1", "skill2"]
-        }}
+Article:
+{text}"""
 
-        Rules:
-        - Topic should be concise related to AI/tech (e.g. LLM, Computer Vision, MLOps)
-        - Skills should be technical skills/tools/concepts
-        - Return max 5 skills
-        - No markdown
-        - No explanation
-        - Output ONLY JSON
 
-        Article:
-        {text}
-        """.strip()
+def _parse_response(content: str) -> dict:
+    """Strip any accidental markdown fences and parse JSON."""
+    clean = content.strip().replace("```json", "").replace("```", "").strip()
+    return json.loads(clean)
+
+
+def extract_insights(article: dict) -> dict:
+    """
+    Enrich an article dict with 'topic' and 'skills' fields via LLM.
+    Falls back to safe defaults on any error.
+    """
+    base = {
+        "title":   article["title"],
+        "summary": article["description"],
+        "url":     article["url"],
+        "topic":   "General",
+        "skills":  [],
+    }
 
     try:
-        response = llm.invoke(prompt)
-
-        content = response.content.strip()
-
-        # Remove accidental markdown fences
-        content = content.replace("```json", "").replace("```", "").strip()
-
-        parsed = json.loads(content)
-
-        return {
-            "title": article["title"],
-            "summary": article["description"],
-            "topic": parsed.get("topic", "General"),
-            "skills": parsed.get("skills", []),
-            "url": article["url"]
-        }
-
+        response = _llm.invoke(
+            _PROMPT.format(text=article["description"], max_skills=MAX_SKILLS)
+        )
+        parsed = _parse_response(response.content)
+        base["topic"]  = parsed.get("topic", "General")
+        base["skills"] = parsed.get("skills", [])
     except Exception as e:
-        print(f"Insight extraction error: {e}")
+        print(f"[insights] Extraction error: {e}")
 
-        return {
-            "title": article["title"],
-            "summary": article["description"],
-            "topic": "General",
-            "skills": [],
-            "url": article["url"]
-        }
-
+    return base
 
 
 if __name__ == "__main__":
-    sample_article = {
-        "title": "New LLM breakthrough",
-        "description": "A new LLM model achieves state-of-the-art results in NLP tasks.",
-        "url": "http://example.com/llm-breakthrough"
+    sample = {
+        "title":       "New LLM breakthrough",
+        "description": "A new LLM achieves state-of-the-art results in NLP tasks.",
+        "url":         "http://example.com/llm-breakthrough",
     }
-
-    insights = extract_insights(sample_article)
-    print(f"Title: {insights['title']}")
-    print(f"Summary: {insights['summary']}")
-    print(f"Topic: {insights['topic']}")
-    print(f"Skills to Learn: {', '.join(insights['skills'])}")
-    print(f"URL: {insights['url']}")
+    result = extract_insights(sample)
+    print(f"Topic:  {result['topic']}")
+    print(f"Skills: {', '.join(result['skills'])}")

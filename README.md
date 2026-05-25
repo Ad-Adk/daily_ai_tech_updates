@@ -141,6 +141,8 @@ Chatbot:
 | Add/remove keywords | `config.py → KEYWORDS` |
 | Adjust topic scores | `config.py → HIGH_VALUE_TOPICS` |
 | Adjust skill scores | `config.py → HIGH_VALUE_SKILLS` |
+| Change LLM model | `config.py → LLM_MODEL` |
+| Fetch more articles | `ingestion/news_api.py → _MAX_ARTICLES` |
 | Show more results | `config.py → TOP_N` |
 
 ---

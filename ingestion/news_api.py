@@ -1,86 +1,85 @@
-import os
-import sys
-import requests
-from bs4 import BeautifulSoup
-import serpapi
+"""
+news_api.py – Fetch AI news via SerpApi (Google News engine).
+Scrapes article body text for downstream summarisation.
+"""
 
-from pathlib import Path
+import os
+import requests
+import serpapi
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-# Locate config/.env
-env_path = Path(__file__).resolve().parent.parent / "config" / ".env"
-load_dotenv(dotenv_path=env_path)
+from config.config import ENV_PATH
 
-# Export variables
+load_dotenv(dotenv_path=ENV_PATH)
+
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-TOPIC_TOKEN = os.getenv("TOPIC_TOKEN")
-client = serpapi.Client(api_key=NEWS_API_KEY)
+TOPIC_TOKEN  = os.getenv("TOPIC_TOKEN")
 
-def _get_article_link(article):
-    if article.get("link"):
-        return article["link"]
+_client = serpapi.Client(api_key=NEWS_API_KEY)
 
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0 Safari/537.36"
+    )
+}
+_MAX_CONTENT  = 3000
+_MAX_ARTICLES = 20
+
+
+def _get_article_link(article: dict) -> str | None:
+    """Return the best available URL for a news article dict."""
+    if link := article.get("link"):
+        return link
     stories = article.get("stories", [])
-    if stories:
-        return stories[0].get("link", None)
+    return stories[0].get("link") if stories else None
 
-    return None
 
-def _get_article_description(url):
+def _scrape_description(url: str | None) -> str | None:
+    """
+    Fetch `url` and extract visible paragraph text.
+    Returns up to _MAX_CONTENT characters, or None on any failure.
+    """
+    if not url:
+        return None
     try:
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0 Safari/537.36"
-            )
-        }
-
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Extract all paragraph text
-        paragraphs = soup.find_all("p")
-
-        content = " ".join(
+        resp = requests.get(url, headers=_HEADERS, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        text = " ".join(
             p.get_text(strip=True)
-            for p in paragraphs
+            for p in soup.find_all("p")
             if p.get_text(strip=True)
         )
-
-        # Optional: limit size
-        return content[:3000] if content else None
-
+        return text[:_MAX_CONTENT] or None
     except Exception:
         return None
 
 
-def fetch_news():
-    results = client.search({
+def fetch_news() -> list[dict]:
+    """Return up to _MAX_ARTICLES news items as {title, url, description} dicts."""
+    results = _client.search({
         "engine": "google_news",
         "gl": "us",
         "hl": "en",
-        "topic_token": TOPIC_TOKEN
+        "topic_token": TOPIC_TOKEN,
     })
 
-    news=[]
-    news_articles = results.get("news_results", [])[:20]
-    for article in news_articles:
-        news.append({
-            "title": article.get("title", None),
-            "url": _get_article_link(article),
-            "description": _get_article_description(_get_article_link(article))
+    articles = []
+    for raw in results.get("news_results", [])[:_MAX_ARTICLES]:
+        url = _get_article_link(raw)
+        articles.append({
+            "title":       raw.get("title"),
+            "url":         url,
+            "description": _scrape_description(url),
         })
+    return articles
 
-    return news
 
 if __name__ == "__main__":
-    news = fetch_news()
-
-    for article in news:
+    for article in fetch_news():
         print(f"Title: {article['title']}")
-        print(f"Description: {article['description']}")
-        print(f"URL: {article['url']}")
+        print(f"URL:   {article['url']}")
         print("-" * 80)
