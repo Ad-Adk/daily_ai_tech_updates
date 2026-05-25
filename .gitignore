@@ -1,3 +1,5 @@
 config/.env
 chroma_db
-./AI_Tech_app_optimised
+AI_Tech_app_optimised/config/.env
+AI_Tech_app_optimised/chroma_db
+AI_Tech_app_optimised/README.md
